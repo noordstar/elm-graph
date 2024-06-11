@@ -77,6 +77,10 @@ operationFuzzer vf ef g =
                     (Fuzz.maybe ef)
                     (Fuzz.oneOfValues (Graph.v g))
                     (Fuzz.oneOfValues (Graph.v g))
+
+                -- Add a whole bunch of vertices
+                , Fuzz.listOfLengthBetween 1 8 vf
+                    |> Fuzz.map (List.foldl (\v -> Graph.insertV v >> Tuple.second) g)
                 ]
 
 
