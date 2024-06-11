@@ -102,6 +102,16 @@ insertV v g =
     Iddict.insert (emptyV v) g
 
 
+foldl : (Int -> Vertex vertex edge -> a -> a) -> a -> Graph vertex edge -> a
+foldl =
+    Iddict.foldl
+
+
+foldr : (Int -> Vertex vertex edge -> a -> a) -> a -> Graph vertex edge -> a
+foldr =
+    Iddict.foldr
+
+
 mapE : (edge1 -> edge2) -> Graph vertex edge1 -> Graph vertex edge2
 mapE f g =
     Iddict.map

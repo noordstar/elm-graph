@@ -5,7 +5,7 @@ module Graph exposing
     , empty, singleton, insertV, insertE, updateE, removeE, removeV
     , isEmpty, getE, sizeE, sizeV
     , v, e
-    , mapV, mapE
+    , mapV, mapE, foldl, foldr
     , degree, pointsTo
     )
 
@@ -47,7 +47,7 @@ direction and a label. There can not be more than two edges between two vertices
 
 ## Transform
 
-@docs mapV, mapE
+@docs mapV, mapE, foldl, foldr
 
 
 ## Traverse
@@ -137,6 +137,30 @@ eLabel (Edge ed) =
 empty : Graph vertex edge
 empty =
     Graph Internal.empty
+
+
+{-| Fold over the vertices in the graph from oldest to newest added vertex.
+-}
+foldl : (Vertex vertex -> a -> a) -> a -> Graph vertex edge -> a
+foldl f start (Graph g) =
+    Internal.foldl
+        (\key vx step ->
+            f (Vertex { ptr = key, vertex = vx.content }) step
+        )
+        start
+        g
+
+
+{-| Fold over the vertices in the graph from newest to oldest added vertex.
+-}
+foldr : (Vertex vertex -> a -> a) -> a -> Graph vertex edge -> a
+foldr f start (Graph g) =
+    Internal.foldr
+        (\key vx step ->
+            f (Vertex { ptr = key, vertex = vx.content }) step
+        )
+        start
+        g
 
 
 {-| Get an edge between two vertices, if it exists.
