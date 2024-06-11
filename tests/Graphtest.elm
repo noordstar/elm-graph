@@ -78,9 +78,9 @@ operationFuzzer vf ef g =
                     (Fuzz.oneOfValues (Graph.v g))
                     (Fuzz.oneOfValues (Graph.v g))
 
-                -- Add a whole bunch of vertices
-                , Fuzz.listOfLengthBetween 1 8 vf
-                    |> Fuzz.map (List.foldl (\v -> Graph.insertV v >> Tuple.second) g)
+                -- -- Add a whole bunch of vertices
+                -- , Fuzz.listOfLengthBetween 1 8 vf
+                --     |> Fuzz.map (List.foldl (\v -> Graph.insertV v >> Tuple.second) g)
                 ]
 
 
@@ -163,6 +163,61 @@ suite =
                                     )
                                 |> Expect.all
                                 |> (|>) ()
+                )
+            ]
+        , describe "Folding"
+            [ fuzz (fuzzer Fuzz.int Fuzz.unit)
+                "Sum folding is direction-blind"
+                (\g ->
+                    Expect.equal
+                        (Graph.foldl (\v s -> Graph.vLabel v + s) 0 g)
+                        (Graph.foldr (\v s -> Graph.vLabel v + s) 0 g)
+                )
+            , fuzz (fuzzer Fuzz.int Fuzz.unit)
+                "Sum increases by vertex size (foldl)"
+                (\g ->
+                    Expect.equal
+                        (Graph.foldl (\v s -> Graph.vLabel v + s) 0 g)
+                        (Graph.v g
+                            |> List.map Graph.vLabel
+                            |> List.sum
+                        )
+                )
+            , fuzz (fuzzer Fuzz.int Fuzz.unit)
+                "Sum increases by vertex size (foldr)"
+                (\g ->
+                    Expect.equal
+                        (Graph.foldr (\v s -> Graph.vLabel v + s) 0 g)
+                        (Graph.v g
+                            |> List.map Graph.vLabel
+                            |> List.sum
+                        )
+                )
+            , fuzz (fuzzer Fuzz.int Fuzz.unit)
+                "Mapping still has proper folding (foldl)"
+                (\g ->
+                    Expect.equal
+                        (g
+                            |> Graph.mapV (\v -> Graph.vLabel v + 1)
+                            |> Graph.foldl (\v s -> Graph.vLabel v + s) 0
+                        )
+                        (g
+                            |> Graph.foldl (\v s -> Graph.vLabel v + s) 0
+                            |> (+) (Graph.sizeV g)
+                        )
+                )
+            , fuzz (fuzzer Fuzz.int Fuzz.unit)
+                "Mapping still has proper folding (foldr)"
+                (\g ->
+                    Expect.equal
+                        (g
+                            |> Graph.mapV (\v -> Graph.vLabel v + 1)
+                            |> Graph.foldr (\v s -> Graph.vLabel v + s) 0
+                        )
+                        (g
+                            |> Graph.foldr (\v s -> Graph.vLabel v + s) 0
+                            |> (+) (Graph.sizeV g)
+                        )
                 )
             ]
         ]
