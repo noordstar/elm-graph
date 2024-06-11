@@ -1,22 +1,30 @@
 module Graphtest exposing (..)
 
-import Test exposing (..)
+import Expect
 import Fuzz exposing (Fuzzer)
 import Graph exposing (Graph)
 import Internal
 import Recursion
-import Expect
+import Test exposing (..)
+
 
 fuzzer : Fuzzer vertex -> Fuzzer edge -> Fuzzer (Graph vertex edge)
 fuzzer vf ef =
     Fuzz.andThen (\i -> fuzzerIterate i vf ef) (Fuzz.intRange 0 1024)
+
 
 fuzzerIterate : Int -> Fuzzer vertex -> Fuzzer edge -> Fuzzer (Graph vertex edge)
 fuzzerIterate n vf ef =
     Recursion.runRecursion
         (\i ->
             if i <= 0 then
-                Recursion.base (Fuzz.constant Graph.empty)
+                Recursion.base
+                    (Fuzz.oneOf
+                        [ Fuzz.constant Graph.empty
+                        , Fuzz.map (Graph.singleton >> Tuple.second) vf
+                        ]
+                    )
+
             else
                 Recursion.recurseThen (i - 1)
                     (\graphFuzzer ->
@@ -27,44 +35,50 @@ fuzzerIterate n vf ef =
         )
         n
 
+
 operationFuzzer : Fuzzer vertex -> Fuzzer edge -> Graph vertex edge -> Fuzzer (Graph vertex edge)
 operationFuzzer vf ef g =
-    Fuzz.oneOf
-        -- Add a new vertex
-        [ Fuzz.map
-            (\v -> Tuple.second (Graph.insertV v g) )
-            vf
+    case Graph.v g of
+        [] ->
+            Fuzz.map
+                (\v -> Tuple.second (Graph.insertV v g))
+                vf
 
-        -- Connect two random vertices with an edge
-        , case Graph.v g of
-            [] ->
-                Fuzz.constant g
+        _ :: _ ->
+            Fuzz.oneOf
+                -- Add a new vertex
+                [ Fuzz.map
+                    (\v -> Tuple.second (Graph.insertV v g))
+                    vf
 
-            _ :: _ ->
-                Fuzz.map3
+                -- Connect two random vertices with an edge
+                , Fuzz.map3
                     (\e f t -> Graph.insertE { content = e, from = f, to = t } g)
                     ef
                     (Fuzz.oneOfValues (Graph.v g))
                     (Fuzz.oneOfValues (Graph.v g))
-        
-        -- Remove a vertex
-        , case Graph.v g of
-            [] ->
-                Fuzz.constant g
-            
-            _ :: _ ->
-                Fuzz.map (\v -> Graph.removeV v g) (Fuzz.oneOfValues (Graph.v g))
-        
-        -- Remove an edge
-        , case Graph.v g of
-            [] ->
-                Fuzz.constant g
-            
-            _ :: _ ->
-                Fuzz.map2 (\v1 v2 -> Graph.removeE {from  = v1, to = v2} g)
+
+                -- Remove a vertex
+                , Fuzz.map (\v -> Graph.removeV v g) (Fuzz.oneOfValues (Graph.v g))
+
+                -- Remove an edge
+                , Fuzz.map2 (\v1 v2 -> Graph.removeE { from = v1, to = v2 } g)
                     (Fuzz.oneOfValues (Graph.v g))
                     (Fuzz.oneOfValues (Graph.v g))
-        ]
+
+                -- Update an edge
+                , Fuzz.map3
+                    (\me v1 v2 ->
+                        Graph.updateE
+                            { from = v1, to = v2 }
+                            (always me)
+                            g
+                    )
+                    (Fuzz.maybe ef)
+                    (Fuzz.oneOfValues (Graph.v g))
+                    (Fuzz.oneOfValues (Graph.v g))
+                ]
+
 
 suite : Test
 suite =
@@ -76,7 +90,8 @@ suite =
                         |> Graph.isEmpty
                         |> Expect.equal True
                 )
-            , fuzz (fuzzer Fuzz.string Fuzz.string) "Only empty graphs have zero vertices"
+            , fuzz (fuzzer Fuzz.string Fuzz.string)
+                "Only empty graphs have zero vertices"
                 (\g ->
                     Expect.equal
                         (Graph.isEmpty g)
@@ -84,17 +99,66 @@ suite =
                 )
             ]
         , describe "Graph sizes"
-            [ fuzz (fuzzer Fuzz.string Fuzz.string) "Vertex size matches length of vertex list"
+            [ fuzz (fuzzer Fuzz.string Fuzz.string)
+                "Vertex size matches length of vertex list"
                 (\g ->
                     Expect.equal
                         (List.length (Graph.v g))
                         (Graph.sizeV g)
                 )
-            , fuzz (fuzzer Fuzz.string Fuzz.string) "Edge size matches length of edge list"
+            , fuzz (fuzzer Fuzz.string Fuzz.string)
+                "Edge size matches length of edge list"
                 (\g ->
                     Expect.equal
                         (List.length (Graph.e g))
                         (Graph.sizeE g)
+                )
+            , fuzz (fuzzer Fuzz.string Fuzz.string)
+                "Edge size is always at most vertex size squared"
+                (\g ->
+                    Expect.atMost
+                        (Graph.sizeV g ^ 2)
+                        (Graph.sizeE g)
+                )
+            ]
+        , describe "Degree"
+            [ fuzz (fuzzer Fuzz.string Fuzz.string)
+                "Degree matches length of outgoing edges list"
+                (\g ->
+                    case Graph.v g of
+                        [] ->
+                            Expect.pass
+
+                        head :: tail ->
+                            head
+                                :: tail
+                                |> List.map
+                                    (\v () ->
+                                        Expect.equal
+                                            (Graph.degree v g)
+                                            (List.length <| Graph.pointsTo v g)
+                                    )
+                                |> Expect.all
+                                |> (|>) ()
+                )
+            , fuzz (fuzzer Fuzz.string Fuzz.string)
+                "Degree is always at most graph size"
+                (\g ->
+                    case Graph.v g of
+                        [] ->
+                            Expect.pass
+
+                        head :: tail ->
+                            head
+                                :: tail
+                                |> List.map
+                                    (\v () ->
+                                        Expect.atMost
+                                            (Graph.sizeV g)
+                                            (Graph.degree v g)
+                                    )
+                                |> Expect.all
+                                |> (|>) ()
                 )
             ]
         ]

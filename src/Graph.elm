@@ -6,7 +6,7 @@ module Graph exposing
     , isEmpty, getE, sizeE, sizeV
     , v, e
     , mapV, mapE
-    , pointsTo
+    , degree, pointsTo
     )
 
 {-|
@@ -52,7 +52,7 @@ direction and a label. There can not be more than two edges between two vertices
 
 ## Traverse
 
-@docs pointsTo
+@docs degree, pointsTo
 
 -}
 
@@ -87,6 +87,15 @@ type Vertex vertex
 destination : Edge vertex edge -> Vertex vertex
 destination (Edge ed) =
     ed.destination
+
+
+{-| Get the number of outgoing edges for a given vertex.
+-}
+degree : Vertex vertex -> Graph vertex edge -> Int
+degree (Vertex vx) (Graph g) =
+    Internal.getV vx.ptr g
+        |> Maybe.map (\iv -> Dict.size iv.source)
+        |> Maybe.withDefault 0
 
 
 {-| Get a list of all edges
